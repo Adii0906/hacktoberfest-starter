@@ -23,17 +23,34 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Open `.env` and paste your two keys after the `=` sign:
+Open `.env` and paste your keys after the `=` sign:
 
 ```
 GITHUB_TOKEN=ghp_your_token_here
 GROQ_API_KEY=gsk_your_key_here
 ```
 
-| Key | Where to get it |
-|---|---|
-| `GITHUB_TOKEN` | https://github.com/settings/tokens, "Generate new token (classic)", no scopes needed |
-| `GROQ_API_KEY` | https://console.groq.com/keys, "Create API Key" (free) |
+| Key | Needed? | Where to get it |
+|---|---|---|
+| `GITHUB_TOKEN` | always | https://github.com/settings/tokens, "Generate new token (classic)", no scopes needed |
+| `GROQ_API_KEY` | only without a local model | https://console.groq.com/keys, "Create API Key" (free) |
+
+**Local model or Groq?** The app picks for you on every search:
+
+1. If [Ollama](https://ollama.com) is running on your machine with a model
+   installed, the app uses that local model. No Groq key needed, nothing leaves
+   your computer except the GitHub search.
+2. If not, it uses `gpt-oss-120b` on Groq with your `GROQ_API_KEY`.
+
+To use a local model:
+
+```bash
+ollama pull llama3.1      # or any chat model you like
+```
+
+Keep Ollama running and start the app. To pick a specific installed model,
+set `OLLAMA_MODEL=llama3.1:8b` in `.env`. Small local models are slower and
+less accurate than gpt-oss-120b, so rankings may differ.
 
 `.env` is git-ignored, so your keys never get committed.
 
@@ -50,8 +67,8 @@ Pick your skills, choose how many hours you have, press **FIND**.
 1. **Search.** Ask GitHub for open, unassigned beginner issues in your languages.
 2. **Vet.** Check what GitHub can't: claims in the comments, open pull
    requests, dead repos, repos that ban AI-written PRs.
-3. **Match.** The `gpt-oss-120b` model (open-weight, run on Groq) ranks what is
-   left against your skills and writes a first-hour plan and a comment you can
+3. **Match.** A language model ranks what is left (a local Ollama model if you
+   have one, otherwise the open-weight `gpt-oss-120b` on Groq) against your skills and writes a first-hour plan and a comment you can
    post to claim the issue.
 
 ## Why an issue gets rejected

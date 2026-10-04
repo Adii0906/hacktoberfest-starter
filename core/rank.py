@@ -85,9 +85,11 @@ def run(skills, hours, on_stage=None, use_model=True):
     kept, dropped = vet.vet(issues, on_stage=stage)
 
     judgments = {}
+    backend = None
     if use_model and kept:
         profile = {"skills": skills, "hours": hours}
-        judgments = judge.judge_many(_judge_candidates(kept), profile)
+        backend = judge._client()
+        judgments = judge.judge_many(_judge_candidates(kept), profile, client=backend)
     ranked = rank(kept, judgments)
     dropped.extend(ranked["vague"])
     stage("matching against your skills", len(ranked["top"]))
@@ -96,7 +98,7 @@ def run(skills, hours, on_stage=None, use_model=True):
         "created_at": int(time.time()),
         "skills": skills,
         "hours": hours,
-        "model": judge.MODEL,
+        "model": f"{backend.name}:{backend.model}" if backend else None,
         "scanned": len(issues),
         "funnel": funnel,
         "top": ranked["top"],
@@ -124,6 +126,8 @@ def main():
 
     print("SCANNING")
     payload = run(skills, args.hours, on_stage=show, use_model=not args.no_model)
+    if payload["model"]:
+        print(f"  ranked with {payload['model']}")
     print(f"\n{len(payload['top'])} issues you can actually take.")
     print(f"{len(payload['dropped'])} you would have wasted time on.")
 

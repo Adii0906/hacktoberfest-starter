@@ -276,7 +276,7 @@ def render_scan():
 
     try:
         search.github_token()  # clear message if missing
-        judge._client()  # clear message if GROQ_API_KEY missing
+        judge._client()  # clear message if no local model and no GROQ_API_KEY
         holder.markdown(
             funnel_html([], pending=f"fetching issues for {', '.join(query['skills'])}"),
             unsafe_allow_html=True,

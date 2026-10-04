@@ -1,4 +1,8 @@
-"""Groq LLM calls. gpt-oss-120b reads what survived vetting and ranks it.
+"""LLM calls. A model reads what survived vetting and ranks it.
+
+Two backends, picked automatically on every run:
+  1. a local model served by Ollama (http://localhost:11434), if one is installed
+  2. otherwise gpt-oss-120b on Groq, using GROQ_API_KEY
 
 Issue bodies are untrusted text: they are wrapped in delimiters, the model
 is told to treat them as data, the call has no tools, and output is forced
@@ -9,7 +13,13 @@ import json
 import os
 import time
 
+import requests
+
 MODEL = "openai/gpt-oss-120b"
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+# Tried in this order when OLLAMA_MODEL is not set; otherwise the first
+# installed model is used.
+LOCAL_PREFERENCE = ["gpt-oss", "qwen", "llama3", "mistral", "gemma"]
 BATCH_SIZE = 5
 BODY_LIMIT = 3000
 
@@ -42,16 +52,94 @@ class JudgeError(RuntimeError):
     pass
 
 
-def _client():
-    key = os.environ.get("GROQ_API_KEY", "").strip()
-    if not key:
-        raise JudgeError(
-            "GROQ_API_KEY is missing. Copy .env.example to .env and paste "
-            "your key after GROQ_API_KEY=, then restart the app."
-        )
-    from groq import Groq
+class GroqBackend:
+    name = "groq"
 
-    return Groq(api_key=key)
+    def __init__(self, key):
+        from groq import Groq
+
+        self.model = MODEL
+        self.client = Groq(api_key=key)
+
+    def chat(self, messages):
+        """One chat completion, JSON forced, no tools. One backoff on 429."""
+        from groq import RateLimitError
+
+        for attempt in range(2):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                )
+                return resp.choices[0].message.content or ""
+            except RateLimitError:
+                if attempt == 1:
+                    raise
+                time.sleep(5)
+        return ""
+
+
+class OllamaBackend:
+    name = "local"
+
+    def __init__(self, model):
+        self.model = model
+
+    def chat(self, messages):
+        """Local chat completion via Ollama, JSON forced, no tools."""
+        resp = requests.post(
+            f"{OLLAMA_HOST}/api/chat",
+            json={
+                "model": self.model,
+                "messages": messages,
+                "format": "json",
+                "stream": False,
+                "options": {"temperature": 0.2},
+            },
+            timeout=600,  # local models on a laptop can be slow
+        )
+        resp.raise_for_status()
+        return resp.json().get("message", {}).get("content", "")
+
+
+def detect_local_model():
+    """Return the name of an installed Ollama model, or None."""
+    try:
+        resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2)
+        resp.raise_for_status()
+        installed = [m["name"] for m in resp.json().get("models", [])]
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+    # Embedding-only models cannot chat.
+    installed = [m for m in installed if "embed" not in m.lower()]
+    if not installed:
+        return None
+    wanted = os.environ.get("OLLAMA_MODEL", "").strip()
+    if wanted:
+        return wanted if wanted in installed or f"{wanted}:latest" in installed else None
+    for prefix in LOCAL_PREFERENCE:
+        for name in installed:
+            if name.lower().startswith(prefix):
+                return name
+    return installed[0]
+
+
+def _client():
+    """Local model if one is installed, else Groq. Raises JudgeError with a
+    clear message when neither is available."""
+    local = detect_local_model()
+    if local:
+        return OllamaBackend(local)
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if key:
+        return GroqBackend(key)
+    raise JudgeError(
+        "No local model found and GROQ_API_KEY is missing. Either start Ollama "
+        "with a model installed (for example: ollama pull llama3.1), or copy "
+        ".env.example to .env and paste your key after GROQ_API_KEY=, then restart the app."
+    )
 
 
 def _sanitize(text, limit=BODY_LIMIT):
@@ -60,27 +148,11 @@ def _sanitize(text, limit=BODY_LIMIT):
 
 
 def _chat(client, user_prompt):
-    """One chat completion, JSON forced, no tools. One backoff on 429."""
-    from groq import RateLimitError
-
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
-    for attempt in range(2):
-        try:
-            resp = client.chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                temperature=0.2,
-                response_format={"type": "json_object"},
-            )
-            return json.loads(resp.choices[0].message.content or "")
-        except RateLimitError:
-            if attempt == 1:
-                raise
-            time.sleep(5)
-    return None
+    return json.loads(client.chat(messages) or "")
 
 
 # ---------------------------------------------------------------- validation
@@ -201,9 +273,9 @@ def _judge_batch(client, issues, profile):
     return results
 
 
-def judge_many(issues, profile):
+def judge_many(issues, profile, client=None):
     """Judge issues in batches of 5. Returns {issue_id: judgment or None}."""
-    client = _client()
+    client = client or _client()
     out = {}
     for start in range(0, len(issues), BATCH_SIZE):
         batch = issues[start:start + BATCH_SIZE]
