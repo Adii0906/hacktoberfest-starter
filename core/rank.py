@@ -112,6 +112,9 @@ def run(skills, hours, on_stage=None, use_model=True):
 
 
 def main():
+    from dotenv import load_dotenv
+
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Run the pipeline from the command line.")
     parser.add_argument("--skills", required=True, help="comma separated, e.g. python,sql")
     parser.add_argument("--hours", default="4")

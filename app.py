@@ -7,8 +7,11 @@ import time
 
 import requests
 import streamlit as st
+from dotenv import load_dotenv
 
-from core import judge, rank, search
+load_dotenv()  # reads GITHUB_TOKEN and GROQ_API_KEY from .env
+
+from core import judge, rank, search  # noqa: E402
 
 st.set_page_config(
     page_title="HACKTOBERFEST STARTER",

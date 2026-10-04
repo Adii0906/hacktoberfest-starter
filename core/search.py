@@ -77,8 +77,8 @@ def github_token():
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         raise GitHubError(
-            "GITHUB_TOKEN is not set. Export a GitHub personal access token "
-            "(public_repo read scope is enough) or switch on demo mode."
+            "GITHUB_TOKEN is not set. Paste a GitHub token into .env "
+            "(see .env.example) or switch on demo mode."
         )
     return token
 
