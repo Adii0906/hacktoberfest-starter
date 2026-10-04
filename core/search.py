@@ -1,18 +1,21 @@
 """GitHub fetch + cache.
 
-Rate-limit strategy
--------------------
-- **Search API**: 30 req/min (authenticated). The old code fired up to 18
-  REST search queries (6 labels × N skills). We now build a SINGLE query per
-  skill using OR-ed label qualifiers and fetch 2 pages max. For 2 skills that
-  is 4 requests — an 80 % reduction.
-- **Conditional requests**: Every cached REST response stores its ETag. On
-  cache expiry we send `If-None-Match`; a 304 costs zero quota on core but
-  still counts for search, so we keep the TTL generous.
-- **GraphQL**: batched timeline lookups (20 issues per call) are unchanged;
-  they already minimize calls.
-- **Back-off**: on 403/429 we read `x-ratelimit-reset` and sleep just long
-  enough, then retry once.
+Retrieval strategy
+------------------
+- **A query plan per profile** (core/skills.py): one query per skill, using a
+  strategy that suits the skill (language qualifier, or keyword in title and
+  body), plus combined queries for pairs of skills that are needed together.
+- **Labels OR-ed in one query** via GitHub's advanced issue search
+  (``advanced_search=true``). If GitHub rejects that syntax, or it returns
+  nothing where a plain query finds results, the run switches to legacy mode:
+  one label per query, spent in priority order within the request budget.
+- **Balanced pool**: results are interleaved per skill, so one skill with
+  thousands of issues cannot crowd out another with forty.
+- **Budget**: at most MAX_SEARCH_REQUESTS search calls per run, serial (as
+  GitHub asks), no fixed sleeps; ``x-ratelimit-remaining`` is honoured.
+- **Caching**: every response is cached for an hour; expired entries are
+  revalidated with ``If-None-Match``.
+- **GraphQL**: timeline lookups are batched 20 issues per call.
 """
 
 import hashlib
@@ -22,63 +25,15 @@ import time
 
 import requests
 
-from core import db
+from core import db, skills
 
 API = "https://api.github.com"
 GRAPHQL = "https://api.github.com/graphql"
 CACHE_TTL = 60 * 60          # 1 hour for search results
 GRAPHQL_BATCH = 20            # GitHub node-id lookup limit per call
-MAX_SEARCH_PAGES = 2          # at most 2 pages per consolidated query
-PER_PAGE = 50                 # maximum allowed by search endpoint is 100
-
-LABEL_SYNONYMS = [
-    "good first issue",
-    "good-first-issue",
-    "first-timers-only",
-    "help wanted",
-    "beginner",
-    "hacktoberfest",
-]
-
-# Skill (lower case) -> GitHub linguist language name. Anything not in this
-# map is treated as a keyword (topic) qualifier, not a language.
-LANGUAGES = {
-    "python": "Python",
-    "javascript": "JavaScript",
-    "js": "JavaScript",
-    "typescript": "TypeScript",
-    "ts": "TypeScript",
-    "go": "Go",
-    "golang": "Go",
-    "rust": "Rust",
-    "java": "Java",
-    "c++": "C++",
-    "cpp": "C++",
-    "c": "C",
-    "c#": "C#",
-    "csharp": "C#",
-    "ruby": "Ruby",
-    "php": "PHP",
-    "kotlin": "Kotlin",
-    "swift": "Swift",
-    "dart": "Dart",
-    "scala": "Scala",
-    "elixir": "Elixir",
-    "haskell": "Haskell",
-    "lua": "Lua",
-    "r": "R",
-    "julia": "Julia",
-    "shell": "Shell",
-    "bash": "Shell",
-    "sql": "SQL",
-    "html": "HTML",
-    "css": "CSS",
-    "scss": "SCSS",
-    "vue": "Vue",
-    "svelte": "Svelte",
-    "jupyter": "Jupyter Notebook",
-    "dockerfile": "Dockerfile",
-}
+MAX_SEARCH_REQUESTS = 14      # stays well inside the 30/min search budget
+PER_PAGE = 40
+DEFAULT_POOL = 60
 
 
 class GitHubError(RuntimeError):
@@ -216,50 +171,6 @@ def graphql(query, variables=None):
     raise _http_error(last_resp, "a GraphQL query")
 
 
-# ---------------------------------------------------------------- query builder
-
-
-def _sanitize_skill(skill: str) -> str:
-    """Strip characters that would break GitHub search syntax."""
-    return "".join(ch for ch in skill.strip().lower() if ch not in '"\\:()')
-
-
-def skill_qualifier(skill: str) -> str:
-    clean = _sanitize_skill(skill)
-    if clean in LANGUAGES:
-        return f'language:"{LANGUAGES[clean]}"'
-    return f'"{clean}"'
-
-
-MAX_QUERIES = 10  # hard cap: stay well within the 30 req/min search budget
-
-# Ranked by signal strength: "good first issue" and "hacktoberfest" yield the
-# most relevant results. We query the top 3 labels per skill.
-_PRIORITY_LABELS = [
-    "good first issue",
-    "hacktoberfest",
-    "help wanted",
-]
-
-
-def build_queries(skills: list[str]) -> list[tuple[str, str]]:
-    """One query per (skill × label), using only the top 3 labels.
-
-    OLD: 6 labels × N skills = up to 18 queries  (burns the 30/min budget).
-    NEW: 3 labels × N skills, capped at 10 = typically 6 queries for 2 skills.
-
-    GitHub search does NOT support OR for label qualifiers, so we issue
-    separate queries but limit the total count aggressively.
-    """
-    base = "is:issue is:open no:assignee archived:false"
-    queries = []
-    skills = [s for s in skills if _sanitize_skill(s)]
-    for label in _PRIORITY_LABELS:
-        for skill in skills:
-            queries.append((skill, f'{base} label:"{label}" {skill_qualifier(skill)}'))
-    return queries[:MAX_QUERIES]
-
-
 # ---------------------------------------------------------------- normalize
 
 
@@ -332,55 +243,154 @@ def _attach_timeline(issues):
 # ---------------------------------------------------------------- main entry
 
 
-def fetch_issues(skills, limit=50):
-    """Search GitHub for unassigned beginner issues matching the skills.
+class _Searcher:
+    """Runs planned queries within the request budget, choosing advanced or
+    legacy search syntax and remembering which one works."""
 
-    Uses one consolidated query per skill (all labels OR-ed) instead of
-    one query per label×skill pair. With MAX_SEARCH_PAGES=2, for 2 skills
-    we send at most 4 search requests (down from up to 18).
-    """
-    skills = [s.strip() for s in skills if s.strip()]
-    if not skills:
-        return []
+    mode = os.environ.get("GITHUB_SEARCH_MODE", "").strip().lower() or None  # shared per process
 
-    results: list[list] = []
-    queries = build_queries(skills)
+    def __init__(self, budget):
+        self.budget = budget
+        self.log = []
 
-    for qi, (_skill, q) in enumerate(queries):
-        for page in range(1, MAX_SEARCH_PAGES + 1):
-            params = {"q": q, "sort": "updated", "order": "desc",
-                      "per_page": PER_PAGE, "page": page}
-            cache_key = "GET /search/issues?" + json.dumps(params, sort_keys=True)
-            was_cached, _ = db.cache_get(cache_key, CACHE_TTL)
+    def _get(self, q, advanced):
+        if self.budget <= 0:
+            return None
+        self.budget -= 1
+        params = {"q": q, "sort": "created", "order": "desc", "per_page": PER_PAGE}
+        if advanced:
+            params["advanced_search"] = "true"
+        return rest_get("/search/issues", params)
+
+    def _record(self, pq, q, body):
+        items = (body or {}).get("items", [])
+        total = (body or {}).get("total_count", 0)
+        self.log.append({"skills": list(pq.skills), "query": q, "returned": len(items), "total": total})
+        return items, total
+
+    def run_advanced(self, pq):
+        q = skills.advanced_query(pq)
+        try:
+            body = self._get(q, advanced=True)
+        except GitHubError as exc:
+            if exc.status != 422:
+                raise
+            _Searcher.mode = "legacy"  # syntax not supported here
+            return None
+        if body is None:
+            return [], 0
+        items, total = self._record(pq, q, body)
+        if total == 0 and _Searcher.mode is None:
+            # Zero hits could mean the advanced syntax is silently unsupported.
+            # One plain query settles it for the rest of the process.
+            probe = self.run_legacy(pq, max_labels=1)
+            if probe and probe[1] > 0:
+                _Searcher.mode = "legacy"
+                return probe
+        if total > 0:
+            _Searcher.mode = "advanced"
+        return items, total
+
+    def run_legacy(self, pq, max_labels=None):
+        items, total = [], 0
+        for label in pq.labels[:max_labels]:
+            q = skills.legacy_query(pq, label)
             try:
-                body = rest_get("/search/issues", params)
+                body = self._get(q, advanced=False)
             except GitHubError as exc:
                 if exc.status == 422:
-                    break            # malformed query — skip this skill
+                    continue
                 raise
-            items = body.get("items", [])
-            results.append(items)
-            # Stop paging if GitHub returned fewer items than requested.
-            if len(items) < PER_PAGE:
+            if body is None:
                 break
-            # Respect the 30 req/min search budget: sleep between uncached calls.
-            if was_cached is None:
-                time.sleep(1.5)
+            got, n = self._record(pq, q, body)
+            items.extend(got)
+            total += n
+        return items, total
 
-        # Small delay between queries to stay within the window.
-        if was_cached is None and qi + 1 < len(queries):
-            time.sleep(0.5)
 
-    # Round-robin merge across queries for variety.
-    seen: set[int] = set()
-    merged: list[dict] = []
-    depth = max((len(r) for r in results), default=0)
-    for row in range(depth):
-        for items in results:
-            if row < len(items) and items[row]["id"] not in seen:
-                seen.add(items[row]["id"])
-                merged.append(_normalize(items[row]))
+def _search_all(plan):
+    """Execute the plan. Returns (results, log): results is a list of
+    (PlannedQuery, items, total_count)."""
+    searcher = _Searcher(MAX_SEARCH_REQUESTS)
+    results = []
+    pending = list(plan)
+    while pending and _Searcher.mode != "legacy":
+        pq = pending[0]
+        outcome = searcher.run_advanced(pq)
+        if outcome is None:  # switched to legacy: retry this query below
+            break
+        results.append((pq, *outcome))
+        pending.pop(0)
 
-    merged = merged[:limit]
-    _attach_timeline(merged)
-    return merged
+    if pending:
+        # Legacy syntax: one label per request. First the top label for
+        # every query, then the next label for every query, until the
+        # budget runs out, so no skill is starved.
+        collected = {id(pq): ([], 0) for pq in pending}
+        depth = max(len(pq.labels) for pq in pending)
+        for i in range(depth):
+            for pq in pending:
+                if i >= len(pq.labels) or searcher.budget <= 0:
+                    continue
+                items, total = searcher.run_legacy(
+                    skills.PlannedQuery(pq.skills, pq.terms, (pq.labels[i],), pq.legacy_terms))
+                old_items, old_total = collected[id(pq)]
+                collected[id(pq)] = (old_items + items, old_total + total)
+        results.extend((pq, *collected[id(pq)]) for pq in pending)
+    return results, searcher.log
+
+
+def _balance(results, profile, pool_size):
+    """Interleave results per skill so every skill gets a fair share of the
+    pool. Combined queries feed every skill they serve, first."""
+    found_by = {}
+    raw = {}
+    queues = {p["skill"]: [] for p in profile}
+    ordered = sorted(results, key=lambda r: -len(r[0].skills))  # combos first
+    for pq, items, _total in ordered:
+        for item in items:
+            if item.get("pull_request"):
+                continue
+            raw.setdefault(item["id"], item)
+            found_by.setdefault(item["id"], set()).update(pq.skills)
+            for skill in pq.skills:
+                queues.setdefault(skill, []).append(item["id"])
+
+    pool, seen = [], set()
+    cursors = {skill: 0 for skill in queues}
+    while len(pool) < pool_size:
+        progressed = False
+        for skill, queue in queues.items():
+            while cursors[skill] < len(queue) and queue[cursors[skill]] in seen:
+                cursors[skill] += 1
+            if cursors[skill] < len(queue) and len(pool) < pool_size:
+                issue_id = queue[cursors[skill]]
+                seen.add(issue_id)
+                issue = _normalize(raw[issue_id])
+                issue["found_by"] = sorted(found_by[issue_id])
+                pool.append(issue)
+                progressed = True
+        if not progressed:
+            break
+    return pool
+
+
+def fetch_issues(profile, pool_size=DEFAULT_POOL):
+    """Search GitHub for unassigned beginner issues across every skill in
+    the profile. Returns (issues, report).
+
+    report = {"queries": [...], "totals": {skill: total_count from GitHub},
+              "mode": "advanced" | "legacy"}
+    """
+    profile = skills.normalise_profile(profile)
+    if not profile:
+        return [], {"queries": [], "totals": {}, "mode": _Searcher.mode}
+    results, log = _search_all(skills.plan_queries(profile))
+    totals = {}
+    for pq, _items, total in results:
+        if len(pq.skills) == 1:
+            totals[pq.skills[0]] = totals.get(pq.skills[0], 0) + total
+    pool = _balance(results, profile, pool_size)
+    _attach_timeline(pool)
+    return pool, {"queries": log, "totals": totals, "mode": _Searcher.mode or "advanced"}

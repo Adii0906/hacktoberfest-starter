@@ -13,7 +13,7 @@ import time
 
 DB_PATH = os.path.join(os.getcwd(), "starter_cache.db")
 
-_lock = threading.Lock()
+_lock = threading.RLock()  # re-entrant: writers hold it while _conn() may initialise
 _conn_holder: dict = {}  # mutable holder so the closure can update it
 
 _SCHEMA = """
@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS runs (
 """
 
 
+def _migrate(conn):
+    """Bring cache files created by older versions up to the current schema."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(http_cache)")}
+    if "etag" not in columns:
+        conn.execute("ALTER TABLE http_cache ADD COLUMN etag TEXT")
+        conn.commit()
+
+
 def _conn() -> sqlite3.Connection:
     """Return the process-wide singleton connection, creating it on first use."""
     if "c" not in _conn_holder:
@@ -45,6 +53,7 @@ def _conn() -> sqlite3.Connection:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA synchronous=NORMAL")
                 conn.executescript(_SCHEMA)
+                _migrate(conn)
                 _conn_holder["c"] = conn
     return _conn_holder["c"]
 

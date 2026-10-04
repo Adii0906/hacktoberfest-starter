@@ -52,6 +52,12 @@ Keep Ollama running and start the app. To pick a specific installed model,
 set `OLLAMA_MODEL=llama3.1:8b` in `.env`. Small local models are slower and
 less accurate than gpt-oss-120b, so rankings may differ.
 
+The local path is built to stay fast on a laptop: the model gets a short
+brief per issue (facts the app already checked, plus a cleaned description),
+its output is held to a fixed JSON shape so it cannot break, scores are cached
+for 7 days, and scoring stops after `LOCAL_TIME_BUDGET` seconds (anything not
+reached is still shown, just unscored). See `.env.example` for the settings.
+
 `.env` is git-ignored, so your keys never get committed.
 
 **3. Run**
@@ -60,16 +66,41 @@ less accurate than gpt-oss-120b, so rankings may differ.
 streamlit run app.py
 ```
 
-Pick your skills, choose how many hours you have, press **FIND**.
+Add your skills, set your level in each (beginner, intermediate, advanced),
+choose how much time you have, press **FIND ISSUES**.
 
 ## How it works
 
-1. **Search.** Ask GitHub for open, unassigned beginner issues in your languages.
-2. **Vet.** Check what GitHub can't: claims in the comments, open pull
+1. **Search.** Each skill is searched the way that suits it: languages by repo
+   language, frameworks, tools and topics (react, docker, sql, documentation)
+   by keyword. Pairs of skills that go together get their own search too, so
+   SQL work inside a Python project is found directly. Your level picks the
+   labels: beginners get `good first issue` and `first-timers-only`, advanced
+   contributors get `help wanted` first. Results are pooled fairly, so a skill
+   with thousands of issues cannot crowd out one with forty.
+2. **Verify.** Check what GitHub can't: claims in the comments, open pull
    requests, dead repos, repos that ban AI-written PRs.
-3. **Match.** A language model ranks what is left (a local Ollama model if you
-   have one, otherwise the open-weight `gpt-oss-120b` on Groq) against your skills and writes a first-hour plan and a comment you can
-   post to claim the issue.
+3. **Match.** A language model (a local Ollama model if you have one,
+   otherwise the open-weight `gpt-oss-120b` on Groq) scores what is left
+   against your skills and levels, and writes a first-hour plan and a comment
+   you can post to claim the issue.
+
+Results can be filtered by skill, and a panel shows how many issues were
+checked and are free for each skill, so you can see when a skill found nothing.
+
+## How results are ranked
+
+| Part | Weight | What it measures |
+|---|---|---|
+| Fit | 30% | Model: how well the work matches your skills and levels |
+| Clarity | 25% | Model: how clearly the issue says what done looks like |
+| Repo health | 20% | Recent pushes and recently merged outside PRs |
+| Skill coverage | 15% | How many of your skills the issue uses (more is better) |
+| Level fit | 10% | The level the issue needs against your level |
+
+Issues the model has not scored are ranked by the last three alone and listed
+after scored ones. The list is then re-ordered so no single skill or repo takes
+every top slot.
 
 ## Why an issue gets rejected
 
@@ -95,18 +126,20 @@ issue. Click one and check.
 ## Check the GitHub side from the terminal
 
 ```bash
-python -m core.rank --skills python,sql --no-model
+python -m core.rank --skills python:advanced,sql:beginner --no-model --explain
 ```
 
-This runs the search and every check without ranking, and prints how many
-issues survive each step.
+This runs the search and every check without the model, prints how many
+issues survive each step, every GitHub query it sent, and per-skill coverage.
+Drop `--no-model` to include scoring.
 
 ## Notes
 
 - The app never writes to GitHub. It never comments, assigns or opens PRs.
   You post the claim comment yourself.
 - GitHub results are cached for 60 minutes in `starter_cache.db`, so searching
-  again within the hour does not use up your GitHub rate limit.
+  again within the hour does not use up your GitHub rate limit. A search sends
+  at most 14 requests to GitHub's search API (the limit is 30 per minute).
 
 ## License
 

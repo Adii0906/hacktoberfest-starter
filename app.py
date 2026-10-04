@@ -1,7 +1,6 @@
 """HACKTOBERFEST STARTER. GitHub says unassigned. We check if it is actually unclaimed."""
 
 import html
-import os
 import time
 
 import requests
@@ -10,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # reads GITHUB_TOKEN and GROQ_API_KEY from .env
 
-from core import judge, rank, search  # noqa: E402
+from core import judge, rank, search, skills  # noqa: E402
 
 st.set_page_config(
     page_title="HACKTOBERFEST STARTER",
@@ -33,7 +32,7 @@ html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]):not(.material-s
 }
 .block-container { padding-top: 2rem; padding-bottom: 5rem; }
 .pill {
-  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  display: inline-block; padding: 2px 10px; border-radius: 999px; margin-right: 6px;
   font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;
 }
 .pill.free { color: #3FB950; border: 1px solid #3FB950; }
@@ -41,30 +40,53 @@ html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]):not(.material-s
 .muted { color: #9DA7B3; }
 .small { font-size: 13px; }
 .label { color: #9DA7B3; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin: 16px 0 6px; }
-.rule { border: 0; border-top: 1px solid #30363D; margin: 28px 0; }
+.rule { border: 0; border-top: 1px solid #30363D; margin: 36px 0; }
+.page, .st-key-profile_form, .st-key-empty_actions { max-width: 860px; margin: 0 auto; width: 100%; }
 
-.hero { max-width: 760px; margin: 3rem auto 0; }
-.hero h1 { font-size: 40px; letter-spacing: 6px; color: #E6EDF3; margin: 0; line-height: 1.2; }
-.hero .sub { color: #C9D1D9; font-size: 18px; margin-top: 12px; line-height: 1.5; }
-.steps { max-width: 760px; margin: 0 auto; }
-.step { display: flex; gap: 28px; padding: 18px 0; align-items: baseline; }
+.eyebrow { color: #3FB950; font-size: 13px; letter-spacing: 3px; margin-top: 2.5rem; }
+.hero h1 { font-size: 44px; color: #E6EDF3; margin: 14px 0 0; line-height: 1.15; letter-spacing: -0.5px; }
+.hero .sub { color: #C9D1D9; font-size: 17px; margin-top: 18px; line-height: 1.65; }
+.hero .tag { color: #9DA7B3; font-size: 14px; margin-top: 18px; }
+.section-title { color: #9DA7B3; font-size: 13px; letter-spacing: 3px; margin-bottom: 14px; }
+.step { display: flex; gap: 28px; padding: 16px 0; align-items: baseline; }
 .step + .step { border-top: 1px solid #21262D; }
-.step .name { flex: 0 0 110px; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #9DA7B3; }
+.step .name { flex: 0 0 120px; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #9DA7B3; }
 .step .text { font-size: 15px; line-height: 1.6; color: #C9D1D9; }
 .step.key .name { color: #3FB950; font-size: 20px; }
-.step.key .text { color: #E6EDF3; font-size: 18px; font-weight: 600; }
-.tagline { max-width: 760px; margin: 0 auto; color: #9DA7B3; font-size: 14px; }
-.form-head { max-width: 760px; margin: 0 auto 8px; }
+.step.key .text { color: #E6EDF3; font-size: 17px; font-weight: 600; }
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+.rules div { padding: 9px 0; border-bottom: 1px solid #21262D; font-size: 14px; line-height: 1.5; color: #C9D1D9; }
+.rules .reason { color: #FF7B72; }
+.gets { margin: 0; padding-left: 22px; color: #C9D1D9; font-size: 15px; line-height: 1.9; }
+@media (max-width: 720px) {
+  .rules { grid-template-columns: 1fr; }
+  .rules .reason { border-bottom-width: 2px; }
+  .step { flex-direction: column; gap: 4px; }
+  .hero h1 { font-size: 32px; }
+}
+
+.form-step { color: #E6EDF3; font-size: 15px; font-weight: 700; margin: 18px 0 4px; }
+.form-hint { color: #9DA7B3; font-size: 13px; margin-bottom: 8px; line-height: 1.5; }
+.skill-name { color: #E6EDF3; font-size: 15px; padding-top: 6px; }
+.kind { color: #9DA7B3; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-left: 8px; }
+.plan { color: #9DA7B3; font-size: 13px; margin-top: 10px; line-height: 1.6; }
+.plan b { color: #C9D1D9; font-weight: 600; }
 
 .chip {
   display: inline-block; padding: 3px 10px; margin: 0 6px 6px 0; border-radius: 999px;
   border: 1px solid #30363D; background: #161B22; font-size: 13px; color: #E6EDF3;
 }
 .chip .muted { font-size: 11px; }
+.match {
+  display: inline-block; padding: 1px 8px; margin: 0 6px 4px 0; border-radius: 4px;
+  font-size: 12px; color: #3FB950; border: 1px solid #2EA04366;
+}
+.match.weak { color: #9DA7B3; border: 1px dashed #30363D; }
 .err {
   border-left: 3px solid #FF7B72; padding: 8px 14px; color: #FF7B72;
   font-size: 14px; margin: 12px 0; line-height: 1.5;
 }
+.note { border-left: 3px solid #E3B341; padding: 6px 12px; color: #C9D1D9; font-size: 13px; margin: 0 0 14px; line-height: 1.5; }
 
 .funnel { max-width: 720px; margin: 4rem auto 0; }
 .funnel h2 { letter-spacing: 6px; font-size: 20px; margin-bottom: 1.5rem; color: #E6EDF3; }
@@ -85,11 +107,16 @@ html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]):not(.material-s
 .stats { display: flex; flex-wrap: wrap; gap: 28px; margin: 14px 0 4px; }
 .stats div { font-size: 12px; color: #9DA7B3; }
 .stats b { color: #E6EDF3; font-size: 16px; display: block; }
-ol.steps-list { padding-left: 22px; margin: 0; font-size: 14px; line-height: 1.6; color: #C9D1D9; }
+ol.steps-list, ul.steps-list { padding-left: 22px; margin: 0; font-size: 14px; line-height: 1.6; color: #C9D1D9; }
 .rollup { color: #3FB950; font-size: 13px; margin: 10px 0; }
 
 .summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 3px 0; color: #9DA7B3; }
 .summary-row b { color: #E6EDF3; text-align: right; overflow-wrap: anywhere; }
+.cov { padding: 8px 0; border-bottom: 1px solid #21262D; }
+.cov .head { color: #E6EDF3; font-size: 14px; }
+.cov .nums { color: #9DA7B3; font-size: 12px; margin-top: 2px; }
+.cov .nums b { color: #C9D1D9; }
+.cov .warn { color: #E3B341; font-size: 12px; margin-top: 2px; }
 
 .wall { border-left: 3px solid #FF7B72; padding: 2px 0 2px 20px; }
 .wall h3 { color: #FF7B72; font-size: 16px; letter-spacing: 2px; margin: 0; line-height: 1.4; }
@@ -121,16 +148,17 @@ div[data-testid="stColumn"]:has(.sticky-marker), div[data-testid="column"]:has(.
     unsafe_allow_html=True,
 )
 
-COMMON_SKILLS = [
-    "python", "javascript", "typescript", "react", "go", "rust", "java", "c++",
-    "sql", "html", "css", "docker", "machine learning", "devops",
-]
 HOURS = ["2", "4", "8", "a weekend"]
+LEVEL_HINT = ("Beginner: still learning it. Intermediate: you have built something with it. "
+              "Advanced: comfortable in a large codebase.")
 CATEGORIES = [
     "already claimed", "open PR exists", "dead repo", "stale issue",
     "maintainers inactive", "bans AI PRs", "too vague",
 ]
+ALL = "__all__"
+PAGE = 5
 NBSP = " "
+DEFAULT_PROFILE = [{"skill": "python", "level": "intermediate"}, {"skill": "sql", "level": "beginner"}]
 
 for key, default in {
     "screen": "landing",
@@ -138,6 +166,10 @@ for key, default in {
     "query": None,
     "error": None,
     "reject_filter": None,
+    "profile": None,
+    "hours_saved": "4",
+    "shown": PAGE,
+    "filter_prev": ALL,
 }.items():
     st.session_state.setdefault(key, default)
 
@@ -166,6 +198,10 @@ def plural(n, word):
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
+def level_key(skill):
+    return "lvl_" + skill.encode().hex()
+
+
 def footer():
     md(
         '<div class="app-footer">Fixed rules decide what is available. '
@@ -176,62 +212,136 @@ def footer():
 # ---------------------------------------------------------------- screen 1
 
 
-def render_landing():
+def render_hero():
     md(
-        '<div class="hero"><h1>HACKTOBERFEST STARTER</h1>'
-        '<div class="sub">Find beginner open source issues that nobody has taken yet, '
-        "matched to the skills you already have.</div></div>"
-        '<hr class="rule">'
-        '<div class="steps">'
-        '<div class="step"><div class="name">SEARCH</div>'
-        '<div class="text">We pull unassigned beginner issues for your skills.</div></div>'
-        '<div class="step key"><div class="name">VERIFY</div>'
-        '<div class="text">We check what GitHub cannot: who already claimed it in the comments, '
-        "open PRs, dead repos, maintainers who ban AI PRs.</div></div>"
-        '<div class="step"><div class="name">MATCH</div>'
-        '<div class="text">We rank what survives against your skills.</div></div>'
+        '<div class="page hero">'
+        '<div class="eyebrow">HACKTOBERFEST STARTER</div>'
+        "<h1>Open source issues that are actually free.</h1>"
+        '<div class="sub">GitHub calls an issue open as long as nobody is assigned. Many of those are '
+        "already claimed in the comments, already have a pull request, or sit in repos nobody maintains. "
+        "We check all of that for you, then match what is left to your skills and your level in each.</div>"
+        '<div class="tag">GitHub says unassigned. We check if it is actually unclaimed.</div>'
         "</div>"
-        '<hr class="rule">'
-        '<div class="tagline">GitHub says unassigned. We check if it is actually unclaimed.</div>'
-        '<hr class="rule">'
+        '<div class="page"><hr class="rule">'
+        '<div class="section-title">HOW IT WORKS</div>'
+        '<div class="step"><div class="name">SEARCH</div>'
+        '<div class="text">We search GitHub for beginner-labelled issues in every skill you add, and '
+        "for issues that need two of your skills at once, like SQL work inside a Python project.</div></div>"
+        '<div class="step key"><div class="name">VERIFY</div>'
+        '<div class="text">We check what GitHub cannot: who already claimed it in the comments, open PRs, '
+        "dead repos, maintainers who ban AI PRs.</div></div>"
+        '<div class="step"><div class="name">MATCH</div>'
+        '<div class="text">We rank what survives against your skills, your level in each and the time you '
+        "have, and keep every skill represented in the results.</div></div>"
+        '<hr class="rule"></div>'
     )
 
-    _, form, _ = st.columns([1, 4, 1])
-    with form:
+
+def render_explainer():
+    rules = [
+        ("Someone asked for it in the last 14 days", "claimed by @user 3d ago"),
+        ("A maintainer already gave it to someone", "maintainer gave it to @user"),
+        ("Three or more people asked for it", "3 people already asking"),
+        ("A pull request for it is already open", "open PR #221 already"),
+        ("Repo not updated in 120 days", "repo idle 8 months"),
+        ("No outside contributor's PR merged in 90 days", "maintainers not merging"),
+        ("Repo archived or a fork", "repo archived"),
+        ("README or CONTRIBUTING bans AI-written PRs", "repo bans AI PRs"),
+        ("The description does not say what done looks like", "too vague"),
+    ]
+    cells = "".join(f"<div>{esc(rule)}</div><div class=\"reason\">{esc(reason)}</div>" for rule, reason in rules)
+    md(
+        '<div class="page"><hr class="rule">'
+        '<div class="section-title">WHAT WE CATCH, AND WHAT YOU SEE</div>'
+        f'<div class="rules">{cells}</div>'
+        '<div class="form-hint" style="margin-top:12px">Every rejected issue links to the real issue on '
+        "GitHub, so you can check it yourself.</div>"
+        '<hr class="rule">'
+        '<div class="section-title">WHAT YOU GET FOR EACH ISSUE</div>'
+        '<ul class="gets">'
+        "<li>Which of your skills it needs, and whether it suits your level</li>"
+        "<li>Fit, clarity and an estimate of the hours</li>"
+        "<li>Three concrete steps for your first hour</li>"
+        "<li>A short comment to ask the maintainer for it. We never post. You do.</li>"
+        "</ul></div>"
+    )
+
+
+def _init_profile_widgets():
+    """Seed widget state from the saved profile. Streamlit drops widget state
+    for widgets not drawn in a run, so the profile lives in its own key."""
+    saved = st.session_state.profile or DEFAULT_PROFILE
+    if "skills_ms" not in st.session_state:
+        st.session_state.skills_ms = [p["skill"] for p in saved]
+    for p in saved:
+        st.session_state.setdefault(level_key(p["skill"]), p["level"])
+    st.session_state.setdefault("hours_sel", st.session_state.hours_saved)
+
+
+def render_profile_form():
+    _init_profile_widgets()
+    with st.container(key="profile_form"):
+        md('<div class="section-title">BUILD YOUR PROFILE</div>')
         if st.session_state.error:
             error_box(st.session_state.error)
 
-        skills_col, hours_col, button_col = st.columns([4, 1.4, 1], vertical_alignment="bottom")
-        with skills_col:
-            picked = st.multiselect(
-                "YOUR SKILLS",
-                COMMON_SKILLS,
-                default=["python", "sql"],
-                accept_new_options=True,
-                placeholder="pick or type any skill",
-            )
-        with hours_col:
-            hours = st.selectbox("HOURS YOU HAVE", HOURS, index=1)
-        with button_col:
-            find = st.button("FIND", type="primary", use_container_width=True)
+        md('<div class="form-step">1. Add your skills</div>'
+           f'<div class="form-hint">Languages, frameworks, tools or topics. Up to {skills.MAX_SKILLS}. '
+           "Type anything that is not in the list.</div>")
+        options = list(dict.fromkeys(skills.COMMON + list(st.session_state.skills_ms)))
+        picked = st.multiselect(
+            "Skills", options, key="skills_ms", accept_new_options=True,
+            max_selections=skills.MAX_SKILLS, label_visibility="collapsed",
+            placeholder="python, react, docker, documentation ...",
+        )
+        names = list(dict.fromkeys(skills.normalise_name(s) for s in picked if skills.normalise_name(s)))
 
-        skills = list(dict.fromkeys(s.strip().lower() for s in picked if s.strip()))
-        if skills:
-            chips = "".join(
-                f'<span class="chip">{esc(s)} '
-                f'<span class="muted">{"language" if s in search.LANGUAGES else "keyword"}</span></span>'
-                for s in skills
-            )
-            md(f'<div style="margin-top:10px"><span class="muted small">searching for </span>{chips}</div>')
+        profile = []
+        if names:
+            md(f'<div class="form-step">2. Set your level in each</div><div class="form-hint">{LEVEL_HINT}</div>')
+            for name in names:
+                key = level_key(name)
+                if st.session_state.get(key) not in skills.LEVELS:
+                    st.session_state[key] = skills.DEFAULT_LEVEL
+                name_col, level_col = st.columns([2, 3], vertical_alignment="center")
+                with name_col:
+                    md(f'<div class="skill-name">{esc(name)}'
+                       f'<span class="kind">{skills.KINDS[skills.lookup(name).kind]}</span></div>')
+                with level_col:
+                    st.segmented_control(
+                        f"Level in {name}", skills.LEVELS, key=key,
+                        format_func=str.title, label_visibility="collapsed",
+                    )
+                profile.append({"skill": name, "level": st.session_state.get(key) or skills.DEFAULT_LEVEL})
+
+        md('<div class="form-step">3. Time you have</div>')
+        hours_col, button_col = st.columns([3, 2], vertical_alignment="bottom")
+        with hours_col:
+            hours = st.selectbox("Hours", HOURS, key="hours_sel", label_visibility="collapsed",
+                                 format_func=lambda h: h if h == "a weekend" else f"{h} hours")
+        with button_col:
+            find = st.button("FIND ISSUES", type="primary", use_container_width=True)
+
+        if profile:
+            searches = [" + ".join(pq.skills) for pq in skills.plan_queries(profile)]
+            md(f'<div class="plan">We will search: <b>{esc(" · ".join(searches))}</b></div>')
 
         if find:
-            if not skills:
-                error_box("Pick at least one skill.")
+            if not profile:
+                error_box("Add at least one skill.")
                 return
-            st.session_state.query = {"skills": skills, "hours": hours}
+            st.session_state.profile = profile
+            st.session_state.hours_saved = hours
+            st.session_state.query = {"profile": profile, "hours": hours}
             st.session_state.error = None
             st.session_state.screen = "scan"
             st.rerun()
+
+
+def render_landing():
+    render_hero()
+    render_profile_form()
+    render_explainer()
 
 
 # ---------------------------------------------------------------- screen 2
@@ -263,26 +373,32 @@ def funnel_html(rows, pending=None, total=None, finish=None):
 
 def render_scan():
     query = st.session_state.query
+    profile = query["profile"]
     holder = st.empty()
-    rows = []
-    state = {"total": None}
+    state = {"rows": [], "total": None, "pending": None}
+
+    def draw(finish=None):
+        holder.markdown(funnel_html(state["rows"], state["pending"], state["total"], finish),
+                        unsafe_allow_html=True)
 
     def on_stage(label, count):
         if state["total"] is None:
             state["total"] = max(count, 1)
-        rows.append((label, count))
-        holder.markdown(funnel_html(rows, total=state["total"]), unsafe_allow_html=True)
-        time.sleep(0.4)
+        state["rows"].append((label, count))
+        state["pending"] = "scoring against your skills" if label.startswith("reading comments") else None
+        draw()
+        time.sleep(0.3)
+
+    def on_progress(done, total):
+        state["pending"] = f"scoring {done} of {total} against your skills"
+        draw()
 
     try:
         search.github_token()  # clear message if missing
         judge._client()  # clear message if no local model and no GROQ_API_KEY
-        holder.markdown(
-            funnel_html([], pending=f"fetching issues for {', '.join(query['skills'])}"),
-            unsafe_allow_html=True,
-        )
-        with st.spinner("ranking what survived"):
-            result = rank.run(query["skills"], query["hours"], on_stage=on_stage)
+        state["pending"] = f"searching GitHub for {', '.join(p['skill'] for p in profile)}"
+        draw()
+        result = rank.run(profile, query["hours"], on_stage=on_stage, on_progress=on_progress)
     except (search.GitHubError, judge.JudgeError) as exc:
         message = str(exc)
     except requests.RequestException as exc:
@@ -297,17 +413,14 @@ def render_scan():
         st.rerun()
         return
 
-    holder.markdown(
-        funnel_html(
-            rows,
-            total=state["total"],
-            finish=(len(result["top"]), len(result["dropped"])),
-        ),
-        unsafe_allow_html=True,
-    )
+    state["pending"] = None
+    draw(finish=(len(result["free"]), len(result["dropped"])))
     time.sleep(1.5)
     st.session_state.result = result
     st.session_state.reject_filter = None
+    st.session_state.skill_filter = ALL
+    st.session_state.filter_prev = ALL
+    st.session_state.shown = PAGE
     st.session_state.screen = "results"
     st.rerun()
 
@@ -322,19 +435,37 @@ def category_counts(dropped):
     return counts
 
 
+def render_coverage(result):
+    md('<div class="label">YOUR SKILLS</div>')
+    rows = []
+    for row in result["coverage"]:
+        if row["found"] == 0:
+            status = '<div class="warn">no open beginner issues on GitHub, try a broader term</div>'
+        elif row["free"] == 0:
+            status = '<div class="warn">every issue found is taken or inactive</div>'
+        else:
+            status = ""
+        rows.append(
+            f'<div class="cov"><div class="head">{esc(row["skill"])} '
+            f'<span class="kind">{esc(row["level"])}</span></div>'
+            f'<div class="nums">checked <b>{row["found"]}</b> · free <b>{row["free"]}</b></div>{status}</div>'
+        )
+    md("".join(rows))
+
+
 def render_summary(result):
     md('<div class="sticky-marker"></div>')
     md(
-        f'<div class="summary-row"><span>SKILLS</span><b>{esc(", ".join(result["skills"]))}</b></div>'
-        f'<div class="summary-row"><span>SCANNED</span><b>{result["scanned"]}</b></div>'
-        f'<div class="summary-row"><span>TAKEN</span><b>{len(result["top"])}</b></div>'
-        '<hr class="thin">'
+        f'<div class="summary-row"><span>CHECKED</span><b>{result["scanned"]}</b></div>'
+        f'<div class="summary-row"><span>FREE</span><b>{len(result["free"])}</b></div>'
+        f'<div class="summary-row"><span>REJECTED</span><b>{len(result["dropped"])}</b></div>'
     )
+    render_coverage(result)
     counts = category_counts(result["dropped"])
     present = [c for c in CATEGORIES if counts.get(c)]
     if not present:
-        md('<div class="muted small">Nothing was rejected.</div>')
         return
+    md('<div class="label">REJECTED BECAUSE</div>')
     active = st.session_state.reject_filter
     for cat in present:
         marker = ">" if active == cat else NBSP
@@ -350,12 +481,24 @@ def render_summary(result):
         md('<div class="muted small" style="margin-top:6px">Click a reason to filter the list.</div>')
 
 
+def match_chips(issue):
+    chips = []
+    for m in issue.get("matches", []):
+        if m["strength"] == "strong":
+            chips.append(f'<span class="match">{esc(m["skill"])} · {esc(m["level"])}</span>')
+        else:
+            chips.append(f'<span class="match weak">{esc(m["skill"])} · mentioned</span>')
+    return "".join(chips)
+
+
 def why_lines(issue):
     s = issue["signals"]
     if s.get("claim_count"):
         claim = f"last claim by @{s['last_claimer']} {ago(s['last_claim_days'])}, no PR since"
     else:
         claim = "claim check passed: nobody asked for it in the comments"
+    evidence = ", ".join(f"{m['skill']} ({m['why']})" for m in issue.get("matches", [])) or "search match"
+    needed = (issue.get("judgment") or {}).get("difficulty") or issue.get("label_difficulty")
     lines = [
         claim,
         "no open pull request linked to the issue",
@@ -363,14 +506,17 @@ def why_lines(issue):
         f"outside contributor PR merged {ago(s['days_since_outside_merge'])}",
         f"issue opened {ago(s['issue_age_days'])}",
         f"repo health {issue['health_score']} / 10",
+        f"your skills it uses: {evidence}",
     ]
+    if needed:
+        lines.append(f"level it needs: {needed}; your level: {rank.working_level(issue.get('matches', []))}")
     return lines + [f"warning: {w}" for w in issue.get("warnings", [])]
 
 
 def issue_header(issue, pill_class, pill_text):
     lang = issue.get("repo_language") or "language unknown"
     md(
-        f'<span class="pill {pill_class}">{pill_text}</span>'
+        f'<span class="pill {pill_class}">{pill_text}</span>{match_chips(issue)}'
         f'<div class="issue-title"><a href="{esc(issue["url"])}" target="_blank">{esc(issue["title"])}</a></div>'
         f'<div class="meta">{esc(issue["repo_full_name"])} · {esc(lang)} · #{issue["number"]}</div>'
     )
@@ -382,6 +528,7 @@ def render_card(issue, rollup):
         issue_header(issue, "free", "FREE")
         md('<hr class="thin">')
         if j:
+            needs = j.get("difficulty") or issue.get("label_difficulty")
             md(
                 '<div class="label">WHY IT FITS YOU</div>'
                 f'<div class="body-text">{esc(j["why_it_fits"])}</div>'
@@ -389,14 +536,16 @@ def render_card(issue, rollup):
                 f'<div><b>{j["estimated_hours"]:g}h</b>hours</div>'
                 f'<div><b>{j["fit"]:g}/10</b>fit</div>'
                 f'<div><b>{j["clarity"]:g}/10</b>clarity</div>'
-                "</div>"
+                + (f"<div><b>{esc(needs)}</b>level needed</div>" if needs else "")
+                + "</div>"
                 '<div class="label">FIRST HOUR</div>'
                 '<ol class="steps-list">' + "".join(f"<li>{esc(step)}</li>" for step in j["first_steps"]) + "</ol>"
             )
         else:
             md(
-                '<div class="body-text">Ranking was not available for this issue, '
-                "so it has no fit score. Every availability check below still passed.</div>"
+                '<div class="body-text">Not scored yet. This issue passed every availability check, '
+                "but only the strongest candidates are scored so the search stays fast. "
+                "Open it and judge the fit yourself.</div>"
             )
 
         risks = list((j or {}).get("risks", [])) + list(issue.get("warnings", []))
@@ -453,15 +602,66 @@ def render_wall(result):
     )
 
 
+def _uses(issue, skill):
+    return any(m["skill"] == skill for m in issue.get("matches", []))
+
+
+def render_issue_list(result):
+    free = result["free"]
+    profile = result["profile"]
+    counts = {p["skill"]: sum(1 for i in free if _uses(i, p["skill"])) for p in profile}
+
+    # Only skills with something to show are filter options; the note below
+    # and the coverage panel explain the rest.
+    options = [ALL, *(k for k, n in counts.items() if n)]
+    if st.session_state.get("skill_filter") not in options:
+        st.session_state.skill_filter = ALL
+    labels = {ALL: f"All {len(free)}", **{k: f"{k} {n}" for k, n in counts.items()}}
+    choice = ALL
+    if len(options) > 2:  # a filter is only useful with two or more skills to choose between
+        choice = st.segmented_control(
+            "Show issues for", options, key="skill_filter",
+            format_func=labels.get, label_visibility="collapsed",
+        ) or ALL
+    if choice != st.session_state.filter_prev:
+        st.session_state.filter_prev = choice
+        st.session_state.shown = PAGE
+
+    empty = [k for k, n in counts.items() if n == 0]
+    if empty and free:
+        md(f'<div class="note">Nothing free right now for <b>{esc(", ".join(empty))}</b>. '
+           "The issues below match your other skills.</div>")
+
+    items = free if choice == ALL else [i for i in free if _uses(i, choice)]
+    if not items:
+        md(
+            '<div class="label">NO FREE ISSUES LEFT</div>'
+            f'<div class="body-text">All {result["scanned"]} issues we checked are taken, stale or in '
+            "inactive repos. Try different skills with EDIT SEARCH.</div>"
+        )
+    for issue in items[:st.session_state.shown]:
+        render_card(issue, result["rollup"])
+    left = len(items) - st.session_state.shown
+    if left > 0:
+        if st.button(f"SHOW {min(PAGE, left)} MORE  ({left} left)", key="more", use_container_width=True):
+            st.session_state.shown += PAGE
+            st.rerun()
+
+    if result["stale"]:
+        md('<div class="label" style="margin-top:28px">WORTH ASKING ABOUT</div>')
+        for issue in result["stale"]:
+            render_stale(issue)
+
+
 def render_empty(result):
-    skills = ", ".join(result["skills"])
+    skills_text = ", ".join(result["skills"])
     md(
-        '<div class="hero"><h1 style="font-size:28px">NOTHING FOUND</h1>'
-        f'<div class="sub">GitHub has no open, unassigned beginner issues for <b>{esc(skills)}</b> '
-        "right now. Try different or broader skills, for example a language like python or javascript.</div></div>"
+        '<div class="page hero"><div class="eyebrow">NOTHING FOUND</div>'
+        f'<div class="sub">GitHub has no open, unassigned beginner issues for <b>{esc(skills_text)}</b> '
+        "right now. Try broader skills, for example a language like python or javascript, or a topic "
+        "like documentation or testing.</div></div>"
     )
-    _, mid, _ = st.columns([1, 4, 1])
-    with mid:
+    with st.container(key="empty_actions"):
         if st.button("TRY DIFFERENT SKILLS", type="primary"):
             st.session_state.screen = "landing"
             st.rerun()
@@ -472,26 +672,21 @@ def render_results():
     if result["scanned"] == 0:
         render_empty(result)
         return
-    if st.button("NEW SEARCH"):
-        st.session_state.screen = "landing"
-        st.rerun()
+    profile_col, button_col = st.columns([5, 1], vertical_alignment="center")
+    with profile_col:
+        chips = "".join(f'<span class="chip">{esc(p["skill"])} <span class="muted">{esc(p["level"])}</span></span>'
+                        for p in result["profile"])
+        md(f'<span class="muted small" style="margin-right:8px">YOUR PROFILE</span>{chips}')
+    with button_col:
+        if st.button("EDIT SEARCH", use_container_width=True):
+            st.session_state.screen = "landing"
+            st.rerun()
 
     left, middle, right = st.columns([1, 2, 1.6], gap="large")
     with left:
         render_summary(result)
     with middle:
-        if not result["top"]:
-            md(
-                '<div class="label">NO FREE ISSUES LEFT</div>'
-                f'<div class="body-text">All {result["scanned"]} issues we found are taken, stale or in '
-                "inactive repos. Try different skills with NEW SEARCH.</div>"
-            )
-        for issue in result["top"]:
-            render_card(issue, result["rollup"])
-        if result["stale"]:
-            md('<div class="label" style="margin-top:28px">WORTH ASKING ABOUT</div>')
-            for issue in result["stale"]:
-                render_stale(issue)
+        render_issue_list(result)
     with right:
         render_wall(result)
 
