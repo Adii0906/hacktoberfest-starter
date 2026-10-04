@@ -46,8 +46,8 @@ def _client():
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
         raise JudgeError(
-            "GROQ_API_KEY is not set. Paste your Groq key into .env "
-            "(see .env.example) or switch on demo mode."
+            "GROQ_API_KEY is missing. Copy .env.example to .env and paste "
+            "your key after GROQ_API_KEY=, then restart the app."
         )
     from groq import Groq
 

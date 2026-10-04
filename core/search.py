@@ -1,7 +1,7 @@
 """GitHub fetch + cache.
 
-Every raw GitHub response is cached in SQLite for 60 minutes, so reruns
-during a demo never touch the API.
+Every raw GitHub response is cached in SQLite for 60 minutes, so a rerun
+within the hour does not hit the API again.
 """
 
 import hashlib
@@ -70,15 +70,28 @@ LANGUAGES = {
 
 
 class GitHubError(RuntimeError):
-    pass
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
+
+
+def _http_error(resp, what):
+    if resp.status_code == 401:
+        return GitHubError(
+            "GitHub rejected GITHUB_TOKEN (401). Check the token in .env is correct "
+            "and not expired, then restart the app.", 401)
+    if resp.status_code in (403, 429):
+        return GitHubError(
+            "GitHub rate limit reached. Wait a minute and search again.", resp.status_code)
+    return GitHubError(f"GitHub returned {resp.status_code} for {what}.", resp.status_code)
 
 
 def github_token():
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         raise GitHubError(
-            "GITHUB_TOKEN is not set. Paste a GitHub token into .env "
-            "(see .env.example) or switch on demo mode."
+            "GITHUB_TOKEN is missing. Copy .env.example to .env and paste "
+            "your token after GITHUB_TOKEN=, then restart the app."
         )
     return token
 
@@ -120,12 +133,12 @@ def rest_get(path, params=None):
             _wait_for_reset(resp)
             continue
         if resp.status_code != 200:
-            raise GitHubError(f"GitHub {resp.status_code} on {path}: {resp.text[:200]}")
+            raise _http_error(resp, path)
         _respect_remaining(resp)
         body = resp.json()
         db.cache_set(key, body)
         return body
-    raise GitHubError(f"GitHub rate limit on {path}")
+    raise _http_error(resp, path)
 
 
 def graphql(query, variables=None):
@@ -142,18 +155,21 @@ def graphql(query, variables=None):
             _wait_for_reset(resp)
             continue
         if resp.status_code != 200:
-            raise GitHubError(f"GitHub GraphQL {resp.status_code}: {resp.text[:200]}")
+            raise _http_error(resp, "a GraphQL query")
         body = resp.json()
         if body.get("errors") and not body.get("data"):
             raise GitHubError(f"GitHub GraphQL error: {body['errors'][0].get('message')}")
         _respect_remaining(resp)
         db.cache_set(key, body)
         return body
-    raise GitHubError("GitHub GraphQL rate limit")
+    raise _http_error(resp, "a GraphQL query")
 
 
 def skill_qualifier(skill):
     skill = skill.strip().lower()
+    # Typed skills go straight into the query: drop characters that would
+    # break GitHub search syntax.
+    skill = "".join(ch for ch in skill if ch not in '"\\:()')
     if skill in LANGUAGES:
         return f'language:"{LANGUAGES[skill]}"'
     # Not a GitHub language: search it as a keyword instead.
@@ -165,6 +181,7 @@ def build_queries(skills):
     best labels before any skill gets its weaker ones. Capped."""
     base = "is:issue is:open no:assignee archived:false"
     queries = []
+    skills = [s for s in skills if skill_qualifier(s) != '""']
     for label in LABEL_SYNONYMS:
         for skill in skills:
             queries.append((skill, f'{base} label:"{label}" {skill_qualifier(skill)}'))
@@ -244,7 +261,12 @@ def fetch_issues(skills, limit=50):
         params = {"q": q, "sort": "updated", "order": "desc", "per_page": 30}
         key = "GET /search/issues?" + json.dumps(params, sort_keys=True)
         was_cached = db.cache_get(key, CACHE_TTL) is not None
-        body = rest_get("/search/issues", params)
+        try:
+            body = rest_get("/search/issues", params)
+        except GitHubError as exc:
+            if exc.status == 422:  # GitHub could not parse this one query: skip it
+                continue
+            raise
         results.append(body.get("items", []))
         if not was_cached and i + 1 < MAX_SEARCH_QUERIES:
             time.sleep(0.5)  # 30 search requests per minute, authenticated

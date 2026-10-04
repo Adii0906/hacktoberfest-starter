@@ -1,12 +1,10 @@
 """Scoring, plus the full search -> vet -> judge -> rank run.
 
-Save a real run for the offline demo:
-    python -m core.rank --skills python,sql --hours 4 --save-demo
+Run it without the UI to check the live GitHub fetch:
+    python -m core.rank --skills python,sql --no-model
 """
 
 import argparse
-import json
-import os
 import time
 
 from core import db, judge, search, vet
@@ -15,7 +13,6 @@ TOP_FREE = 5
 TOP_STALE = 3
 MAX_JUDGED = 20
 VAGUE_CLARITY = 4  # clarity below this is dropped as "too vague"
-DEMO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "demo", "cached_run.json")
 
 
 def health_score(signals):
@@ -118,8 +115,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run the pipeline from the command line.")
     parser.add_argument("--skills", required=True, help="comma separated, e.g. python,sql")
     parser.add_argument("--hours", default="4")
-    parser.add_argument("--save-demo", action="store_true", help=f"write {DEMO_PATH}")
-    parser.add_argument("--no-model", action="store_true", help="skip the Groq judge")
+    parser.add_argument("--no-model", action="store_true", help="skip ranking, GitHub checks only")
     args = parser.parse_args()
     skills = [s.strip().lower() for s in args.skills.split(",") if s.strip()]
 
@@ -130,10 +126,6 @@ def main():
     payload = run(skills, args.hours, on_stage=show, use_model=not args.no_model)
     print(f"\n{len(payload['top'])} issues you can actually take.")
     print(f"{len(payload['dropped'])} you would have wasted time on.")
-    if args.save_demo:
-        with open(DEMO_PATH, "w") as f:
-            json.dump(payload, f, indent=1)
-        print(f"saved {DEMO_PATH}")
 
 
 if __name__ == "__main__":

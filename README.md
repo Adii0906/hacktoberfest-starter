@@ -7,8 +7,6 @@ taken: someone claimed them in the comments, a pull request is already open,
 or the repo is dead. This app finds beginner issues that match your skills,
 throws out the taken ones, and shows you what it threw out and why.
 
-![The reject wall](demo/reject-wall.png)
-
 ## Quick start
 
 **1. Install**
@@ -77,20 +75,21 @@ under **WORTH ASKING ABOUT**.
 **Don't take our word for it:** every rejected issue links to the real GitHub
 issue. Click one and check.
 
-## Demo mode
-
-No keys? The app starts in demo mode and replays a saved run with no network
-calls. To save your own run as the demo:
+## Check the GitHub side from the terminal
 
 ```bash
-python -m core.rank --skills python,sql --hours 4 --save-demo
+python -m core.rank --skills python,sql --no-model
 ```
+
+This runs the search and every check without ranking, and prints how many
+issues survive each step.
 
 ## Notes
 
 - The app never writes to GitHub. It never comments, assigns or opens PRs.
   You post the claim comment yourself.
-- GitHub results are cached for 60 minutes in `starter_cache.db`.
+- GitHub results are cached for 60 minutes in `starter_cache.db`, so searching
+  again within the hour does not use up your GitHub rate limit.
 
 ## License
 

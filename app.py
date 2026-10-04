@@ -1,7 +1,6 @@
 """HACKTOBERFEST STARTER. GitHub says unassigned. We check if it is actually unclaimed."""
 
 import html
-import json
 import os
 import time
 
@@ -19,6 +18,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Palette, all checked against the #0D1117 background:
+#   #E6EDF3 text 16:1, #C9D1D9 text 12:1, #9DA7B3 muted 7.5:1,
+#   #3FB950 green 7.8:1, #FF7B72 red 7.0:1, #E3B341 amber 10:1.
 st.markdown(
     """
 <style>
@@ -34,66 +36,85 @@ html, body, .stApp, .stApp *:not([data-testid="stIconMaterial"]):not(.material-s
   display: inline-block; padding: 2px 10px; border-radius: 999px;
   font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;
 }
-.pill.free { color: #3FB950; border: 1px solid #3FB950; background: rgba(63,185,80,.08); }
-.pill.stale { color: #D29922; border: 1px solid #D29922; background: rgba(210,153,34,.08); }
-.reject { color: #F85149; text-decoration: line-through; opacity: .75; }
-a.reject:hover { opacity: 1; }
-.muted { color: #8B949E; }
-.small { font-size: 12px; }
-.label { color: #8B949E; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 14px 0 4px; }
-.model { color: #6E7681; font-size: 10px; letter-spacing: 0; text-transform: none; margin-left: 6px; }
-.hero { text-align: center; margin: 2.5rem 0 2rem; }
-.hero h1 { font-size: 40px; letter-spacing: 6px; color: #C9D1D9; margin: 0; }
-.hero p { color: #8B949E; font-size: 16px; margin-top: 8px; }
-.step-num { color: #3FB950; font-size: 12px; letter-spacing: 1px; }
-.step-title { font-size: 18px; font-weight: 700; margin: 4px 0 8px; }
-.step-body { color: #8B949E; font-size: 13px; line-height: 1.5; }
-.tagline { text-align: center; color: #6E7681; margin: 1.5rem 0 2rem; font-size: 13px; }
+.pill.free { color: #3FB950; border: 1px solid #3FB950; }
+.pill.stale { color: #E3B341; border: 1px solid #E3B341; }
+.muted { color: #9DA7B3; }
+.small { font-size: 13px; }
+.label { color: #9DA7B3; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin: 16px 0 6px; }
+.rule { border: 0; border-top: 1px solid #30363D; margin: 28px 0; }
+
+.hero { max-width: 760px; margin: 3rem auto 0; }
+.hero h1 { font-size: 40px; letter-spacing: 6px; color: #E6EDF3; margin: 0; line-height: 1.2; }
+.hero .sub { color: #C9D1D9; font-size: 18px; margin-top: 12px; line-height: 1.5; }
+.steps { max-width: 760px; margin: 0 auto; }
+.step { display: flex; gap: 28px; padding: 18px 0; align-items: baseline; }
+.step + .step { border-top: 1px solid #21262D; }
+.step .name { flex: 0 0 110px; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #9DA7B3; }
+.step .text { font-size: 15px; line-height: 1.6; color: #C9D1D9; }
+.step.key .name { color: #3FB950; font-size: 20px; }
+.step.key .text { color: #E6EDF3; font-size: 18px; font-weight: 600; }
+.tagline { max-width: 760px; margin: 0 auto; color: #9DA7B3; font-size: 14px; }
+.form-head { max-width: 760px; margin: 0 auto 8px; }
+
 .chip {
-  display: inline-block; padding: 2px 10px; margin: 0 6px 6px 0; border-radius: 999px;
-  border: 1px solid #30363D; background: #161B22; font-size: 12px; color: #C9D1D9;
+  display: inline-block; padding: 3px 10px; margin: 0 6px 6px 0; border-radius: 999px;
+  border: 1px solid #30363D; background: #161B22; font-size: 13px; color: #E6EDF3;
 }
+.chip .muted { font-size: 11px; }
 .err {
-  border: 1px solid #F85149; border-radius: 6px; padding: 10px 14px; color: #F85149;
-  background: rgba(248,81,73,.06); font-size: 13px; margin: 8px 0;
+  border-left: 3px solid #FF7B72; padding: 8px 14px; color: #FF7B72;
+  font-size: 14px; margin: 12px 0; line-height: 1.5;
 }
+
 .funnel { max-width: 720px; margin: 4rem auto 0; }
-.funnel h2 { letter-spacing: 6px; font-size: 20px; margin-bottom: 1.5rem; }
-.frow { margin: 0 0 14px; }
-.frow .top { display: flex; justify-content: space-between; font-size: 14px; }
-.frow .bar-bg { background: #161B22; height: 8px; border-radius: 4px; margin-top: 6px; }
-.frow .bar { background: #3FB950; height: 8px; border-radius: 4px; transition: width .4s; }
-.frow.pending .top { color: #6E7681; }
-.done-green { color: #3FB950; font-size: 18px; font-weight: 700; margin-top: 1.5rem; }
-.done-grey { color: #8B949E; font-size: 16px; }
-.issue-title a { font-size: 16px; font-weight: 700; color: #C9D1D9; text-decoration: none; }
-.issue-title a:hover { color: #3FB950; }
-.thin { border: 0; border-top: 1px solid #21262D; margin: 10px 0; }
-.stats { display: flex; gap: 24px; margin: 10px 0; }
-.stats div { font-size: 12px; color: #8B949E; }
-.stats b { color: #C9D1D9; font-size: 15px; display: block; }
-ol.steps { padding-left: 20px; margin: 0; font-size: 13px; }
-.rollup { color: #3FB950; font-size: 12px; margin: 8px 0; }
-.summary-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
-.summary-row b { color: #C9D1D9; }
-.wall { border-left: 3px solid #F85149; padding: 4px 0 4px 18px; }
-.wall h3 { color: #F85149; font-size: 15px; letter-spacing: 2px; margin: 0; }
-.wall .sub { color: #8B949E; font-size: 13px; margin: 4px 0 14px; }
-.wall-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px;
-  padding: 5px 0; border-bottom: 1px solid #161B22; }
-.wall-row a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wall-row .why { color: #F85149; white-space: nowrap; font-size: 12px; }
+.funnel h2 { letter-spacing: 6px; font-size: 20px; margin-bottom: 1.5rem; color: #E6EDF3; }
+.frow { margin: 0 0 16px; }
+.frow .top { display: flex; justify-content: space-between; gap: 16px; font-size: 15px; color: #C9D1D9; }
+.frow .bar-bg { background: #21262D; height: 8px; border-radius: 4px; margin-top: 6px; }
+.frow .bar { background: #3FB950; height: 8px; border-radius: 4px; }
+.frow.pending .top { color: #9DA7B3; }
+.done-green { color: #3FB950; font-size: 20px; font-weight: 700; margin-top: 1.5rem; }
+.done-grey { color: #C9D1D9; font-size: 16px; margin-top: 4px; }
+
+.issue-title { margin-top: 10px; line-height: 1.4; }
+.issue-title a { font-size: 16px; font-weight: 700; color: #E6EDF3; text-decoration: none; }
+.issue-title a:hover { color: #3FB950; text-decoration: underline; }
+.meta { color: #9DA7B3; font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
+.thin { border: 0; border-top: 1px solid #30363D; margin: 12px 0; }
+.body-text { font-size: 14px; line-height: 1.6; color: #C9D1D9; }
+.stats { display: flex; flex-wrap: wrap; gap: 28px; margin: 14px 0 4px; }
+.stats div { font-size: 12px; color: #9DA7B3; }
+.stats b { color: #E6EDF3; font-size: 16px; display: block; }
+ol.steps-list { padding-left: 22px; margin: 0; font-size: 14px; line-height: 1.6; color: #C9D1D9; }
+.rollup { color: #3FB950; font-size: 13px; margin: 10px 0; }
+
+.summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 3px 0; color: #9DA7B3; }
+.summary-row b { color: #E6EDF3; text-align: right; overflow-wrap: anywhere; }
+
+.wall { border-left: 3px solid #FF7B72; padding: 2px 0 2px 20px; }
+.wall h3 { color: #FF7B72; font-size: 16px; letter-spacing: 2px; margin: 0; line-height: 1.4; }
+.wall .sub { color: #C9D1D9; font-size: 14px; margin: 6px 0 16px; }
+.wall-row { padding: 8px 0; border-bottom: 1px solid #21262D; line-height: 1.45; }
+.wall-row a.reject {
+  color: #C9D1D9; font-size: 14px; text-decoration: line-through;
+  text-decoration-color: #FF7B72; text-decoration-thickness: 1px; overflow-wrap: anywhere;
+}
+.wall-row a.reject:hover { color: #E6EDF3; }
+.wall-row .why { display: block; color: #FF7B72; font-size: 13px; margin-top: 2px; }
+
 div[data-testid="stColumn"]:has(.sticky-marker), div[data-testid="column"]:has(.sticky-marker) {
   position: sticky; top: 2rem; align-self: flex-start;
 }
 [class*="st-key-rf_"] button {
   background: transparent; border: none; padding: 2px 0; min-height: 0;
-  justify-content: flex-start; color: #8B949E;
+  justify-content: flex-start; color: #C9D1D9;
 }
-[class*="st-key-rf_"] button:hover { color: #F85149; background: transparent; }
+[class*="st-key-rf_"] button:hover { color: #FF7B72; background: transparent; }
+[class*="st-key-rf_"] button p { font-size: 14px; }
+
 .app-footer {
   position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 16px; text-align: center;
-  font-size: 12px; color: #6E7681; background: #0D1117; border-top: 1px solid #21262D; z-index: 100;
+  font-size: 12px; color: #9DA7B3; background: #0D1117; border-top: 1px solid #21262D; z-index: 100;
 }
 </style>
 """,
@@ -109,8 +130,6 @@ CATEGORIES = [
     "already claimed", "open PR exists", "dead repo", "stale issue",
     "maintainers inactive", "bans AI PRs", "too vague",
 ]
-DEMO_FILE = os.path.join(os.path.dirname(__file__), "demo", "cached_run.json")
-MODEL_NAME = judge.MODEL.split("/")[-1]
 NBSP = " "
 
 for key, default in {
@@ -143,19 +162,15 @@ def ago(days):
     return f"{days} day{'s' if days != 1 else ''} ago"
 
 
+def plural(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 def footer():
     md(
-        f'<div class="app-footer">Deterministic filters decide what is available. '
-        f"{MODEL_NAME} decides what fits you. Both are shown, neither is hidden.</div>"
+        '<div class="app-footer">Fixed rules decide what is available. '
+        "Ranking decides what fits you. Both are shown, nothing is hidden.</div>"
     )
-
-
-# ---------------------------------------------------------------- top bar
-
-has_token = bool(os.environ.get("GITHUB_TOKEN", "").strip())
-_, toggle_col = st.columns([6, 1])
-with toggle_col:
-    demo_mode = st.toggle("Demo mode", value=not has_token, key="demo_mode")
 
 
 # ---------------------------------------------------------------- screen 1
@@ -164,57 +179,59 @@ with toggle_col:
 def render_landing():
     md(
         '<div class="hero"><h1>HACKTOBERFEST STARTER</h1>'
-        "<p>Open source issues that are actually free.</p></div>"
+        '<div class="sub">Find beginner open source issues that nobody has taken yet, '
+        "matched to the skills you already have.</div></div>"
+        '<hr class="rule">'
+        '<div class="steps">'
+        '<div class="step"><div class="name">SEARCH</div>'
+        '<div class="text">We pull unassigned beginner issues for your skills.</div></div>'
+        '<div class="step key"><div class="name">VERIFY</div>'
+        '<div class="text">We check what GitHub cannot: who already claimed it in the comments, '
+        "open PRs, dead repos, maintainers who ban AI PRs.</div></div>"
+        '<div class="step"><div class="name">MATCH</div>'
+        '<div class="text">We rank what survives against your skills.</div></div>'
+        "</div>"
+        '<hr class="rule">'
+        '<div class="tagline">GitHub says unassigned. We check if it is actually unclaimed.</div>'
+        '<hr class="rule">'
     )
-    steps = [
-        ("01", "SEARCH", "GitHub gives us every unassigned beginner issue for your skills."),
-        ("02", "VET", "We check what GitHub cannot: who already claimed it in the comments, open PRs, dead repos."),
-        ("03", "MATCH", f"{MODEL_NAME} reads what is left and ranks it against your skills."),
-    ]
-    for col, (num, title, body) in zip(st.columns(3, border=True), steps):
-        with col:
-            md(
-                f'<div class="step-num">{num}</div><div class="step-title">{title}</div>'
-                f'<div class="step-body">{body}</div>'
+
+    _, form, _ = st.columns([1, 4, 1])
+    with form:
+        if st.session_state.error:
+            error_box(st.session_state.error)
+
+        skills_col, hours_col, button_col = st.columns([4, 1.4, 1], vertical_alignment="bottom")
+        with skills_col:
+            picked = st.multiselect(
+                "YOUR SKILLS",
+                COMMON_SKILLS,
+                default=["python", "sql"],
+                accept_new_options=True,
+                placeholder="pick or type any skill",
             )
-    md('<div class="tagline">GitHub says unassigned. We check if it is actually unclaimed.</div>')
+        with hours_col:
+            hours = st.selectbox("HOURS YOU HAVE", HOURS, index=1)
+        with button_col:
+            find = st.button("FIND", type="primary", use_container_width=True)
 
-    if st.session_state.error:
-        error_box(st.session_state.error)
+        skills = list(dict.fromkeys(s.strip().lower() for s in picked if s.strip()))
+        if skills:
+            chips = "".join(
+                f'<span class="chip">{esc(s)} '
+                f'<span class="muted">{"language" if s in search.LANGUAGES else "keyword"}</span></span>'
+                for s in skills
+            )
+            md(f'<div style="margin-top:10px"><span class="muted small">searching for </span>{chips}</div>')
 
-    skills_col, hours_col, button_col = st.columns([5, 1.3, 1], vertical_alignment="bottom")
-    with skills_col:
-        picked = st.multiselect(
-            "YOUR SKILLS",
-            COMMON_SKILLS,
-            default=["python", "sql"],
-            accept_new_options=True,
-            placeholder="type any skill",
-        )
-    with hours_col:
-        hours = st.selectbox("HOURS", HOURS, index=1)
-    with button_col:
-        find = st.button("FIND", type="primary", use_container_width=True)
-
-    skills = list(dict.fromkeys(s.strip().lower() for s in picked if s.strip()))
-    if skills:
-        chips = "".join(
-            f'<span class="chip">{esc(s)} '
-            f'<span class="muted">{"language" if s in search.LANGUAGES else "keyword"}</span></span>'
-            for s in skills
-        )
-        md(f'<div style="margin-top:8px">{chips}</div>')
-    if demo_mode:
-        md('<div class="muted small">Demo mode: replays a saved real run, zero network calls.</div>')
-
-    if find:
-        if not skills:
-            error_box("Pick at least one skill.")
-            return
-        st.session_state.query = {"skills": skills, "hours": hours, "demo": demo_mode}
-        st.session_state.error = None
-        st.session_state.screen = "scan"
-        st.rerun()
+        if find:
+            if not skills:
+                error_box("Pick at least one skill.")
+                return
+            st.session_state.query = {"skills": skills, "hours": hours}
+            st.session_state.error = None
+            st.session_state.screen = "scan"
+            st.rerun()
 
 
 # ---------------------------------------------------------------- screen 2
@@ -230,25 +247,18 @@ def funnel_html(rows, pending=None, total=None, finish=None):
             f'<div class="bar-bg"><div class="bar" style="width:{width:.1f}%"></div></div></div>'
         )
     if pending:
-        out.append(f'<div class="frow pending"><div class="top"><span>{esc(pending)}</span><span>...</span></div></div>')
+        out.append(
+            f'<div class="frow pending"><div class="top"><span>{esc(pending)}</span>'
+            "<span>...</span></div></div>"
+        )
     if finish:
         taken, wasted = finish
         out.append(
-            f'<div class="done-green">{taken} issues you can actually take.</div>'
+            f'<div class="done-green">{plural(taken, "issue")} you can actually take.</div>'
             f'<div class="done-grey">{wasted} you would have wasted time on.</div>'
         )
     out.append("</div>")
     return "".join(out)
-
-
-def load_demo():
-    if not os.path.exists(DEMO_FILE):
-        raise FileNotFoundError(
-            "demo/cached_run.json not found. Generate it with a real run: "
-            "python -m core.rank --skills python,sql --hours 4 --save-demo"
-        )
-    with open(DEMO_FILE) as f:
-        return json.load(f)
 
 
 def render_scan():
@@ -265,27 +275,24 @@ def render_scan():
         time.sleep(0.4)
 
     try:
-        if query["demo"]:
-            result = load_demo()
-            for step in result["funnel"]:
-                on_stage(step["label"], step["count"])
-        else:
-            search.github_token()  # clear message if missing
-            judge._client()  # clear message if GROQ_API_KEY missing
-            holder.markdown(
-                funnel_html([], pending=f"fetching issues for {', '.join(query['skills'])}"),
-                unsafe_allow_html=True,
-            )
-            with st.spinner(f"{MODEL_NAME} is reading the survivors"):
-                result = rank.run(query["skills"], query["hours"], on_stage=on_stage)
-    except (search.GitHubError, judge.JudgeError, FileNotFoundError) as exc:
-        st.session_state.error = str(exc)
-        st.session_state.screen = "landing"
-        st.rerun()
-        return
+        search.github_token()  # clear message if missing
+        judge._client()  # clear message if GROQ_API_KEY missing
+        holder.markdown(
+            funnel_html([], pending=f"fetching issues for {', '.join(query['skills'])}"),
+            unsafe_allow_html=True,
+        )
+        with st.spinner("ranking what survived"):
+            result = rank.run(query["skills"], query["hours"], on_stage=on_stage)
+    except (search.GitHubError, judge.JudgeError) as exc:
+        message = str(exc)
     except requests.RequestException as exc:
-        st.session_state.error = f"Network error talking to GitHub: {exc}"
-
+        message = f"Could not reach GitHub: {exc.__class__.__name__}. Check your connection and try again."
+    except Exception as exc:  # never show a traceback on screen
+        message = f"Something went wrong while searching ({exc.__class__.__name__}). Try again."
+    else:
+        message = None
+    if message:
+        st.session_state.error = message
         st.session_state.screen = "landing"
         st.rerun()
         return
@@ -317,22 +324,30 @@ def category_counts(dropped):
 
 def render_summary(result):
     md('<div class="sticky-marker"></div>')
-    counts = category_counts(result["dropped"])
     md(
-        f'<div class="summary-row"><span class="muted">SKILLS</span><b>{esc(", ".join(result["skills"]))}</b></div>'
-        f'<div class="summary-row"><span class="muted">SCANNED</span><b>{result["scanned"]}</b></div>'
-        f'<div class="summary-row"><span class="muted">TAKEN</span><b>{len(result["top"])}</b></div>'
+        f'<div class="summary-row"><span>SKILLS</span><b>{esc(", ".join(result["skills"]))}</b></div>'
+        f'<div class="summary-row"><span>SCANNED</span><b>{result["scanned"]}</b></div>'
+        f'<div class="summary-row"><span>TAKEN</span><b>{len(result["top"])}</b></div>'
         '<hr class="thin">'
     )
+    counts = category_counts(result["dropped"])
+    present = [c for c in CATEGORIES if counts.get(c)]
+    if not present:
+        md('<div class="muted small">Nothing was rejected.</div>')
+        return
     active = st.session_state.reject_filter
-    for cat in CATEGORIES:
-        n = counts.get(cat, 0)
+    for cat in present:
         marker = ">" if active == cat else NBSP
-        label = f"{marker}{NBSP}{cat.ljust(21, NBSP)}{str(n).rjust(3, NBSP)}"
-        if st.button(label, key=f"rf_{cat.replace(' ', '_')}", disabled=n == 0):
+        label = f"{marker}{NBSP}{cat.ljust(21, NBSP)}{str(counts[cat]).rjust(3, NBSP)}"
+        if st.button(label, key=f"rf_{cat.replace(' ', '_')}"):
             st.session_state.reject_filter = None if active == cat else cat
             st.rerun()
-    md('<div class="muted small" style="margin-top:6px">click a line to filter the wall</div>')
+    if active:
+        if st.button(f"{NBSP}{NBSP}show all", key="rf_all"):
+            st.session_state.reject_filter = None
+            st.rerun()
+    else:
+        md('<div class="muted small" style="margin-top:6px">Click a reason to filter the list.</div>')
 
 
 def why_lines(issue):
@@ -343,63 +358,61 @@ def why_lines(issue):
         claim = "claim check passed: nobody asked for it in the comments"
     lines = [
         claim,
-        "no open pull request linked on the timeline",
+        "no open pull request linked to the issue",
         f"repo pushed {ago(s['days_since_push'])}",
-        f"outside PR merged {ago(s['days_since_outside_merge'])}",
+        f"outside contributor PR merged {ago(s['days_since_outside_merge'])}",
         f"issue opened {ago(s['issue_age_days'])}",
         f"repo health {issue['health_score']} / 10",
     ]
     return lines + [f"warning: {w}" for w in issue.get("warnings", [])]
 
 
+def issue_header(issue, pill_class, pill_text):
+    lang = issue.get("repo_language") or "language unknown"
+    md(
+        f'<span class="pill {pill_class}">{pill_text}</span>'
+        f'<div class="issue-title"><a href="{esc(issue["url"])}" target="_blank">{esc(issue["title"])}</a></div>'
+        f'<div class="meta">{esc(issue["repo_full_name"])} · {esc(lang)} · #{issue["number"]}</div>'
+    )
+
+
 def render_card(issue, rollup):
     j = issue.get("judgment")
     with st.container(border=True):
-        lang = issue.get("repo_language") or "unknown"
-        md(
-            '<span class="pill free">FREE</span>'
-            f'<div class="issue-title" style="margin-top:8px"><a href="{esc(issue["url"])}" target="_blank">'
-            f'{esc(issue["title"])}</a></div>'
-            f'<div class="muted small">{esc(issue["repo_full_name"])} · {esc(lang)} · #{issue["number"]}</div>'
-            '<hr class="thin">'
-        )
+        issue_header(issue, "free", "FREE")
+        md('<hr class="thin">')
         if j:
             md(
-                f'<div class="label">WHY IT FITS YOU<span class="model">{MODEL_NAME}</span></div>'
-                f'<div style="font-size:14px">{esc(j["why_it_fits"])}</div>'
+                '<div class="label">WHY IT FITS YOU</div>'
+                f'<div class="body-text">{esc(j["why_it_fits"])}</div>'
                 '<div class="stats">'
                 f'<div><b>{j["estimated_hours"]:g}h</b>hours</div>'
                 f'<div><b>{j["fit"]:g}/10</b>fit</div>'
                 f'<div><b>{j["clarity"]:g}/10</b>clarity</div>'
                 "</div>"
-                f'<div class="label">FIRST HOUR<span class="model">{MODEL_NAME}</span></div>'
-                '<ol class="steps">' + "".join(f"<li>{esc(step)}</li>" for step in j["first_steps"]) + "</ol>"
+                '<div class="label">FIRST HOUR</div>'
+                '<ol class="steps-list">' + "".join(f"<li>{esc(step)}</li>" for step in j["first_steps"]) + "</ol>"
             )
         else:
-            md(f'<div class="muted small">Not judged: {MODEL_NAME} was unavailable for this issue. '
-               "The vet checks below still passed.</div>")
+            md(
+                '<div class="body-text">Ranking was not available for this issue, '
+                "so it has no fit score. Every availability check below still passed.</div>"
+            )
 
-        with st.expander("Red flags"):
-            risks = (j or {}).get("risks", [])
-            if risks:
-                md(f'<div class="label">FROM {MODEL_NAME}</div>')
-                for r in risks:
-                    md(f"- {esc(r)}")
-            for w in issue.get("warnings", []):
-                md(f"- {esc(w)} (deterministic check)")
-            if not risks and not issue.get("warnings"):
-                md('<span class="muted small">none found</span>')
+        risks = list((j or {}).get("risks", [])) + list(issue.get("warnings", []))
+        if risks:
+            with st.expander(f"Red flags ({len(risks)})"):
+                md('<ul class="steps-list">' + "".join(f"<li>{esc(r)}</li>" for r in risks) + "</ul>")
 
         with st.expander("why?"):
-            for line in why_lines(issue):
-                md(f'<div class="small">{esc(line)}</div>')
+            md('<ul class="steps-list">' + "".join(f"<li>{esc(line)}</li>" for line in why_lines(issue)) + "</ul>")
 
         others = rollup.get(issue["repo_full_name"], 1) - 1
         if others > 0:
-            md(f'<div class="rollup">{others} more free issue{"s" if others != 1 else ""} in this repo</div>')
+            md(f'<div class="rollup">{plural(others, "more free issue")} in this repo</div>')
 
         if j:
-            md(f'<div class="label">CLAIM IT<span class="model">draft by {MODEL_NAME}</span></div>')
+            md('<div class="label">CLAIM IT</div>')
             try:
                 st.code(j["claim_comment"], language=None, wrap_lines=True)
             except TypeError:  # older Streamlit without wrap_lines
@@ -410,13 +423,10 @@ def render_card(issue, rollup):
 def render_stale(issue):
     s = issue["signals"]
     with st.container(border=True):
+        issue_header(issue, "stale", "STALE CLAIM")
         md(
-            '<span class="pill stale">STALE CLAIM</span>'
-            f'<div class="issue-title" style="margin-top:8px"><a href="{esc(issue["url"])}" target="_blank">'
-            f'{esc(issue["title"])}</a></div>'
-            f'<div class="muted small">{esc(issue["repo_full_name"])} · {esc(issue.get("repo_language") or "unknown")}</div>'
-            f'<div style="margin-top:8px;font-size:14px">@{esc(s.get("last_claimer", "someone"))} claimed this '
-            f'{s.get("last_claim_days", "?")} days ago and never opened a PR.</div>'
+            f'<div class="body-text" style="margin-top:10px">@{esc(s.get("last_claimer", "someone"))} '
+            f'claimed this {s.get("last_claim_days", "?")} days ago and never opened a PR.</div>'
         )
 
 
@@ -424,24 +434,44 @@ def render_wall(result):
     dropped = result["dropped"]
     active = st.session_state.reject_filter
     shown = [d for d in dropped if active is None or d["category"] == active]
-    rows = "".join(
-        f'<div class="wall-row"><a class="reject" href="{esc(d["url"])}" target="_blank" '
-        f'title="{esc(d["repo_full_name"])}">{esc(d["title"])}</a>'
-        f'<span class="why">{esc(d["reason"])}</span></div>'
-        for d in shown
-    )
-    filter_note = f'<div class="muted small" style="margin-bottom:8px">showing: {esc(active)}</div>' if active else ""
+    if dropped:
+        rows = "".join(
+            f'<div class="wall-row"><a class="reject" href="{esc(d["url"])}" target="_blank" '
+            f'title="{esc(d["repo_full_name"])}">{esc(d["title"])}</a>'
+            f'<span class="why">{esc(d["reason"])}</span></div>'
+            for d in shown
+        )
+        note = f'<div class="muted small" style="margin-bottom:6px">showing: {esc(active)}</div>' if active else ""
+        tail = '<div class="muted small" style="margin-top:12px">Click any title and check it yourself.</div>'
+    else:
+        rows = note = ""
+        tail = '<div class="muted small">Every issue we found passed the checks.</div>'
     md(
         '<div class="wall"><h3>WHAT OTHER TOOLS WOULD SHOW YOU</h3>'
         f'<div class="sub">{len(dropped)} of these look open on GitHub right now.</div>'
-        f"{filter_note}{rows}"
-        '<div class="muted small" style="margin-top:10px">Click any title and check it yourself.</div>'
-        "</div>"
+        f"{note}{rows}{tail}</div>"
     )
+
+
+def render_empty(result):
+    skills = ", ".join(result["skills"])
+    md(
+        '<div class="hero"><h1 style="font-size:28px">NOTHING FOUND</h1>'
+        f'<div class="sub">GitHub has no open, unassigned beginner issues for <b>{esc(skills)}</b> '
+        "right now. Try different or broader skills, for example a language like python or javascript.</div></div>"
+    )
+    _, mid, _ = st.columns([1, 4, 1])
+    with mid:
+        if st.button("TRY DIFFERENT SKILLS", type="primary"):
+            st.session_state.screen = "landing"
+            st.rerun()
 
 
 def render_results():
     result = st.session_state.result
+    if result["scanned"] == 0:
+        render_empty(result)
+        return
     if st.button("NEW SEARCH"):
         st.session_state.screen = "landing"
         st.rerun()
@@ -451,11 +481,15 @@ def render_results():
         render_summary(result)
     with middle:
         if not result["top"]:
-            md('<div class="muted">Nothing survived vetting for these skills. Try adding another skill.</div>')
+            md(
+                '<div class="label">NO FREE ISSUES LEFT</div>'
+                f'<div class="body-text">All {result["scanned"]} issues we found are taken, stale or in '
+                "inactive repos. Try different skills with NEW SEARCH.</div>"
+            )
         for issue in result["top"]:
             render_card(issue, result["rollup"])
         if result["stale"]:
-            md('<div class="label" style="margin-top:28px;font-size:13px">WORTH ASKING ABOUT</div>')
+            md('<div class="label" style="margin-top:28px">WORTH ASKING ABOUT</div>')
             for issue in result["stale"]:
                 render_stale(issue)
     with right:
