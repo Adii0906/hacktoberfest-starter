@@ -3,6 +3,13 @@
 GitHub says unassigned. These checks decide whether it is actually
 unclaimed. Every dropped issue carries a short reason shown verbatim in
 the UI. Checks run cheapest first and stop at the first failure.
+
+Efficiency notes
+----------------
+- Repo health and comments are fetched via a **single combined GraphQL
+  query** per batch of 20 issues, halving the number of GraphQL round-trips
+  compared to separate fetch_repo_health + fetch_comments calls.
+- Repos are cached for 6 hours so repeat searches never refetch them.
 """
 
 import re
@@ -42,7 +49,7 @@ CLAIM_PHRASES = [
     "may i",
 ]
 # Smart quotes are common in comments typed on phones.
-_QUOTES = str.maketrans({"’": "'", "‘": "'"})
+_QUOTES = str.maketrans({"\u2018": "'", "\u2019": "'"})
 
 HANDOFF_PATTERN = re.compile(r"\bgo ahead\b|\bassigned\b", re.I)
 MAINTAINER_ROLES = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -82,6 +89,7 @@ def _check_issue(issue, now):
 
 
 # ---------------------------------------------------------------- check 2
+
 
 _REPO_FIELDS = """
   pushedAt
@@ -175,6 +183,7 @@ def _check_repo(repo, now):
 
 
 # ---------------------------------------------------------------- check 3
+
 
 _COMMENTS_QUERY = """
 query($ids: [ID!]!) {
